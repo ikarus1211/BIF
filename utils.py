@@ -20,5 +20,6 @@ def store_res(seq, filename):
     seq = ''.join(seq)
 
     f = open("./results/node_" + filename + ".fas", 'w')
+    f.write(">" + filename + "\n")
     f.write(seq)
     f.close()

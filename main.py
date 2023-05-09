@@ -88,8 +88,6 @@ def travel_tree(tree, msa, anc, seq):
 
     met = []
     if len(tree.clades) <= 0:
-        if tree.name == "EEC69977.1":
-            print("pause")
         met.append({"name": tree.name, "conf": tree.confidence, "bl": tree.branch_length})
         return met
     # Left travel
@@ -148,5 +146,4 @@ if __name__ == '__main__':
     t = load_tree(PATH_TREE)
     m = load_fasta(PATH_FASTA)
     a = load_ances(PATH_ANCES)
-    utils.show_tree(t)
     fil_tree(t, m, a)
