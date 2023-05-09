@@ -1,9 +1,7 @@
 from Bio import Phylo
-import matplotlib
-import matplotlib.pyplot as plt
-import pylab
 import csv
 
+import utils
 
 PATH_FASTA = "./msa.fasta"
 PATH_TREE  = "./tree.tre"
@@ -12,24 +10,11 @@ SEQ_LEN = 96
 
 
 
-def show_tree(tree, label=False):
-    matplotlib.rc('font', size=10)
-    # set the size of the figure
-    fig = plt.figure(figsize=(25, 25), dpi=100)
-    # alternatively
-    # fig.set_size_inches(10, 20)
-    axes = fig.add_subplot(1, 1, 1)
-    if label:
-        Phylo.draw(tree,branch_labels=lambda c: c.branch_length, axes=axes)
-    else:
-        Phylo.draw(tree, axes=axes)
-
 
 def load_tree(path):
     f = open(path, 'r')
     tree = Phylo.read(path, "newick")
     tree.ladderize()
-
     return tree
 
 
@@ -38,7 +23,7 @@ def load_fasta(path):
     f = open(path, 'r')
     reads = f.readlines()
 
-    msa = []
+    msa = {}
     name = ""
     dat = []
 
@@ -49,13 +34,15 @@ def load_fasta(path):
             name = line[1:]
         # If new read store the old and start new
         elif line[0] == '>' and name != "":
-            msa.append({"name": name, "reads": dat[0]+dat[1]})
+            msa[name] = dat[0] + dat[1]
             dat = []
             name = line[1:]
         else:
             dat.append(line)
     # Append last read
-    msa.append({"name": name, "reads": dat[0]+dat[1]})
+    msa[name] = dat[0]+dat[1]
+    if len(dat[0]+dat[1]) < 96:
+        print("Smaller")
     return msa
 
 
@@ -93,35 +80,73 @@ def get_resulting_seq(current, anc):
     for prob in probs:
         maxprob, idx = find_max_prob(prob)
         seq.append(AMIN_POS[idx])
-    print("done")
+    return seq
 
 
 
 def travel_tree(tree, msa, anc, seq):
 
+    met = []
     if len(tree.clades) <= 0:
-        meta.append({"name": tree.name, "conf": tree.confidence, "bl": tree.branch_length})
-        return meta, []
+        if tree.name == "EEC69977.1":
+            print("pause")
+        met.append({"name": tree.name, "conf": tree.confidence, "bl": tree.branch_length})
+        return met
     # Left travel
     ls = travel_tree(tree.clades[0], msa, anc, seq)
     # Right travel
     rs = travel_tree(tree.clades[1], msa, anc, seq)
 
+    lsrs = ls + rs
     res_seq = get_resulting_seq(tree.confidence, anc)
-    return
+
+
+    for i in range(0, len(res_seq)):
+        amin_sum, gap_sum = [0, 0]
+        for rec in lsrs:
+            amin = msa[rec["name"]][i]
+            if amin == "-":
+                gap_sum += rec["bl"]
+            else:
+                amin_sum += rec["bl"]
+        if gap_sum > amin_sum:
+            res_seq[i] = '-'
+
+    utils.store_res(res_seq, str(tree.confidence))
+    # Adjust weights by adding new branch len
+    for rec in lsrs:
+        rec["bl"] += tree.branch_length
+    return lsrs
 
 def fil_tree(tree, msa, anc):
 
     r_node = tree.root
-
-
     # Left travel
-    travel_tree(tree.clade.clades[0], msa, anc, [])
+    ls = travel_tree(tree.clade.clades[0], msa, anc, [])
     # Right travel
-    travel_tree(tree.clade.clades[1], msa, anc, [])
-# Press the green button in the gutter to run the script.
+    rs = travel_tree(tree.clade.clades[1], msa, anc, [])
+
+    lsrs = ls + rs
+    res_seq = get_resulting_seq(r_node.confidence, anc)
+
+
+    for i in range(0, len(res_seq)):
+        amin_sum, gap_sum = [0, 0]
+        for rec in lsrs:
+            amin = msa[rec["name"]][i]
+            if amin == "-":
+                gap_sum += rec["bl"]
+            else:
+                amin_sum += rec["bl"]
+        if gap_sum > amin_sum:
+            res_seq[i] = '-'
+
+    utils.store_res(res_seq, str(r_node.confidence))
+
+
 if __name__ == '__main__':
     t = load_tree(PATH_TREE)
     m = load_fasta(PATH_FASTA)
     a = load_ances(PATH_ANCES)
-    fil_tree(t,m,a)
+    utils.show_tree(t)
+    fil_tree(t, m, a)
